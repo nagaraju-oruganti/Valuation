@@ -21,7 +21,7 @@ class Valuation:
         self.tax_rate                   = []
         self.after_tax_operating_income = []
         self.reinvestment               = []
-        self.discount_rate              = [] 
+        self.discount_rate              = []
         self.fcff                       = []
         self.nol                        = []    # net operating loss
         self.cum_discount_factor        = []
@@ -67,7 +67,7 @@ class Valuation:
         base_revenue = self.finanicals['revenues']
         base_operating_income = self.base_operating_income_estimator()
         base_operating_margin = base_operating_income / base_revenue
-        base_tax_rate = self.inputs['market_drivers']['marginal_tax_rate']
+        base_tax_rate = self.inputs['market_drivers']['marginal_tax_rate']      # TODO: should be effective tax rate
         base_after_tax_operating_income = base_operating_margin * (1 - base_tax_rate)
         base_net_operating_loss = self.finanicals['net_operating_loss']
         base_invested_capital = 21479       #TODO: Create a function to estimate invested captial
@@ -80,7 +80,7 @@ class Valuation:
         self.roic                       = [base_after_tax_operating_income / base_invested_capital] + [0] * 10
         
         # profiles are filled with assumptions in the downstream process
-        self.revenue_growth_rate        = ['']
+        self.revenue_growth_rate        = [0]
         self.operating_margin           = [base_operating_margin]
         self.tax_rate                   = [base_tax_rate]
         self.discount_rate              = [base_discount_rate]
@@ -113,34 +113,48 @@ class Valuation:
         # if so, set the value appropriately
         wacc = self.coc.wacc
         for key in ['growth_phase', 'high_growth_phase']:
-            for k in ['start', 'end']:
-                if rates[key][k] == 'wacc':
-                    rates[key][k] = wacc
-        
+            rates[key] = [wacc if i == 'wacc' else i for i in rates[key]]
+        return self.load_profile_assumptions(rates)
+    
+    def _load_tax_rate_assumptions(self):
+        rates = self.assumptions['tax_rate']
+        effective_tax_rate = 0.25               # TODO: effective tax rate should be implied from finanicals
+        marginal_tax_rate = self.inputs['market_drivers']['marginal_tax_rate']
+        for key in ['growth_phase', 'high_growth_phase']:
+            m = []
+            for i in rates[key]:
+                if i == 'marginal_tax_rate':
+                    m.append(marginal_tax_rate)
+                elif i == 'effective_tax_rate':
+                    m.append(effective_tax_rate)
+                else:
+                    m.append(i)
+            rates[key] = m
         return self.load_profile_assumptions(rates)
             
     def load_profile_assumptions(self, profile_dict):
         
         # 1. Check if the first year growth rate is manually set
-        year_1 = profile_dict['next_year']
-        profile = [year_1['start']] if len(year_1) else []
+        next_year = profile_dict['next_year'] 
+        profile = [next_year] if next_year else []
         
         # 2. Make phase 1 profile : Growth Phase
-        phase_1 = profile_dict['growth_phase']
-        if len(phase_1):
-            mode, start, end = phase_1['mode'],  phase_1['start'],  phase_1['end']
-            start_year, end_year = phase_1['start_year'], phase_1['end_year']
+        growth_phase = profile_dict['growth_phase']
+        if len(growth_phase) > 0:
+            start_year, end_year, trend, start, end = growth_phase
             n = end_year - start_year + 1
-            profile += self.make_profile(start, end, mode, n)
+            if trend == 'linear': n = n - 1 # TODO: bug in the code
+            profile += self.make_profile(start, end, trend, n)
         
         # 2. Make phase 2 profile : High Growth Phase
-        phase_2 = profile_dict['high_growth_phase']
-        if len(phase_1) & len(phase_2):
+        high_growth_phase = profile_dict['high_growth_phase']
+        if len(high_growth_phase) > 0:
+            start_year, end_year, trend, start, end = high_growth_phase
             start = profile[-1]
-            mode, end = phase_2['mode'],  phase_2['end']
-            start_year, end_year = phase_2['start_year'], phase_2['end_year']
             n = end_year - start_year + 1
-            profile = profile[:-1] + self.make_profile(start, end, mode, n)
+            if trend == 'constant': n = n + 1 # TODO: bug in the code
+            profile = profile[:-1] + self.make_profile(start, end, trend, n)
+        
         return profile
         
     def estimate_pv_fcff(self):
@@ -155,7 +169,7 @@ class Valuation:
         self.operating_margin +=  self.load_profile_assumptions(self.assumptions['operating_margin'])
         self.operating_margin[2] = 0.0198 # REMOVE
         # Tax rate
-        self.tax_rate += [self.tax_rate[0]] * 10 #TODO: create profile
+        self.tax_rate += self._load_tax_rate_assumptions()
         # Cost of captial profile
         self.discount_rate += self._load_discount_rate_assumptions()
         # Cummulative discount factor
@@ -163,7 +177,7 @@ class Valuation:
             self.cum_discount_factor.append(1 if i == 0 else self.cum_discount_factor[i-1] * (1 / (1 + r)))
         # Sales to capital ratio profile
         self.sales_to_capital_ratio += self.load_profile_assumptions(self.assumptions['sales_to_capital_ratio'])
-            
+
         #--- Compute valuation constituents
         for y in range(1, self.n_years + 1):
             self.revenues[y] = self.revenues[y-1] * (1 + self.revenue_growth_rate[y])
@@ -176,13 +190,13 @@ class Valuation:
             self.invested_capital[y] = self.invested_capital[y-1] + self.reinvestment[y]
             self.roic[y] = self.after_tax_operating_income[y] / self.invested_capital[y]
             
-        print(len(self.operating_margin), '\n')
-            
     def terminal_value(self):
         
+        terminal = self.assumptions['terminal_year']
+        
         # Growth rate in terminal year
-        tgr = self.assumptions['terminal_growth_rate']
-        roic_in_terminal_year = self.assumptions['roic_in_terminal_year']
+        tgr = terminal['growth_rate']
+        roic_in_terminal_year = terminal['roic']
         roic_in_terminal_year = self.discount_rate[-1] if roic_in_terminal_year == 'cost_of_capital' else roic_in_terminal_year
         
         # Append terminal year inputs
@@ -240,20 +254,20 @@ class Valuation:
     def report(self):
         
         items = [self.revenue_growth_rate, 
-                self.revenues,
-                self.operating_margin,
-                self.operating_income,
-                self.tax_rate,
-                self.after_tax_operating_income,
-                self.reinvestment,
-                self.fcff,
-                self.nol,
-                self.discount_rate,
-                self.cum_discount_factor,
-                self.pv_fcff,
-                self.sales_to_capital_ratio,
-                self.invested_capital,
-                self.roic]
+                 self.revenues,
+                 self.operating_margin,
+                 self.operating_income,
+                 self.tax_rate,
+                 self.after_tax_operating_income,
+                 self.reinvestment,
+                 self.fcff,
+                 self.nol,
+                 self.discount_rate,
+                 self.cum_discount_factor,
+                 self.pv_fcff,
+                 self.sales_to_capital_ratio,
+                 self.invested_capital,
+                 self.roic]
 
         index = ['revenue growth rate', 'revenues', 'operating margin', 'operating income', 'tax rate', 
                  'after-tax operating income', 'reinvestment', 'fcff', 'nol', 'discount rate', 'cumulative discount factor',
@@ -268,3 +282,26 @@ class Valuation:
         self.equaity_value()
         self.report()
         
+        
+############################################################################
+# VALUATION OF A BUSINESS IN FINANCIAL SERVICE INDUSTRY
+'''
+    Business model of a company in financial service industry is different from 
+    the rest. Below are the three signficant differences:
+    1. Financial service company is highly regulated by local government and expected to 
+       maintain cash against the customer deposits.
+    2. Raw material and loans are same. Customer and cooperates deposits money with the bank
+       in excahnge of interest, and the bank lends the same money to its customers and earn
+       interest on the loans. In general, difference in the interest rate it earn on advances 
+       and the interest rate it pay on the customer deposits is its earnings. Banks do borrow
+       from other banks and institutional investors at some interest rates, and largly they are
+       significantly low in comparision to deposits.
+    3. Blur in reinvestment measurement. Financial service company reinvests on maintaining
+       capital adequecy ratio (apart from many other operational and strategic). The investments 
+       they make on intangible such as brand name and human capital and normally expensed as operating.
+       Estimating working capital is not possible because current assets and liabilites are hard to 
+       quantify.
+       
+    So, we preper to value equity of financial serivce company.
+'''
+############################################################################

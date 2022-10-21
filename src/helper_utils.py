@@ -334,35 +334,35 @@ class RandomDistributions:
         self.random_state = 42
         
     def construct_normal_samples(self, mean, std_dev, sample_size):
-        self.normal_samples = norm.rvs(loc = mean, 
-                                       scale = std_dev, 
-                                       size = sample_size, 
-                                       random_state = self.random_state)
+        return norm.rvs(loc = mean, 
+                        scale = std_dev, 
+                        size = sample_size, 
+                        random_state = self.random_state)
         
     def construct_uniform_samples(self, low, high, sample_size):
-        self.uniform_samples = uniform.rvs(loc = low, 
-                                           scale = high - low, 
-                                           size = sample_size,
-                                           random_state = self.random_state)
+        return uniform.rvs(loc = low, 
+                           scale = high - low, 
+                           size = sample_size,
+                           random_state = self.random_state)
         
     def construct_triangular_samples(self, low, high, peak, sample_size):
         
         scale = high - low
         c = (peak - low) / scale
         
-        self.triang_samples = triang.rvs(c = c, 
-                                         loc = low, 
-                                         scale = scale, 
-                                         size = sample_size,
-                                         random_state = self.random_state)
+        return triang.rvs(c = c, 
+                          loc = low, 
+                          scale = scale, 
+                          size = sample_size,
+                          random_state = self.random_state)
         
     def construct_skewnorm_samples(self, a, mean, std_dev, sample_size):
         # skewness parameter (a)
-        self.skewnorm_samples = skewnorm.rvs(a, 
-                                             loc = mean,
-                                             scale = std_dev,
-                                             size = sample_size,
-                                             random_state = self.random_state)
+        return skewnorm.rvs(a, 
+                            loc = mean,
+                            scale = std_dev,
+                            size = sample_size,
+                            random_state = self.random_state)
 
 ################################################################################################
 # DCF MODEL
@@ -376,4 +376,3 @@ class DecayType(Enum):
     linear = 0
     exponential = 1
     constant = 2
-
