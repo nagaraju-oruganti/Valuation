@@ -281,27 +281,3 @@ class Valuation:
         self.intergrate_loose_ends()
         self.equaity_value()
         self.report()
-        
-        
-############################################################################
-# VALUATION OF A BUSINESS IN FINANCIAL SERVICE INDUSTRY
-'''
-    Business model of a company in financial service industry is different from 
-    the rest. Below are the three signficant differences:
-    1. Financial service company is highly regulated by local government and expected to 
-       maintain cash against the customer deposits.
-    2. Raw material and loans are same. Customer and cooperates deposits money with the bank
-       in excahnge of interest, and the bank lends the same money to its customers and earn
-       interest on the loans. In general, difference in the interest rate it earn on advances 
-       and the interest rate it pay on the customer deposits is its earnings. Banks do borrow
-       from other banks and institutional investors at some interest rates, and largly they are
-       significantly low in comparision to deposits.
-    3. Blur in reinvestment measurement. Financial service company reinvests on maintaining
-       capital adequecy ratio (apart from many other operational and strategic). The investments 
-       they make on intangible such as brand name and human capital and normally expensed as operating.
-       Estimating working capital is not possible because current assets and liabilites are hard to 
-       quantify.
-       
-    So, we preper to value equity of financial serivce company.
-'''
-############################################################################

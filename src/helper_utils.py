@@ -4,7 +4,6 @@ import numpy as np
 import math
 from scipy.stats import norm
 
-
 ###############################################################################
 # LOGGER
 ###############################################################################
@@ -376,3 +375,61 @@ class DecayType(Enum):
     linear = 0
     exponential = 1
     constant = 2
+    
+##################################################################################################
+# MAKE PROFILE
+##################################################################################################
+class MakeProfile:
+    def __init__(self, profile_dict):
+        self.profile_dict = profile_dict
+        self.profile_dict = self.fill_values_in_profiles(profile_dict)
+        
+    def make_profile(self, start, end, mode, n):
+        if mode == 'constant':
+            return [start] * n
+        if mode == 'linear':
+            delta = (end - start) / n
+            return [start + i * delta for i in range(n+1)]
+        if mode == 'exponential':
+            delta = (end - start) / n
+            return [start * (1 + delta)**n for i in range(n+1)]
+        
+    def fill_values_in_profiles(self, dict_param):
+        uom = dict_param['uom']
+        
+        for key in ['growth_phase', 'high_growth_phase']:
+            if isinstance(dict_param[key], list):
+                for idx in [3, 4]:
+                    value = dict_param[key][idx]
+                    if isinstance(value, str):
+                        value = dict_param[value]
+                    else:
+                        if uom == 'percentage':
+                            # convert percentage into decimal
+                            value = value / 100
+                    dict_param[key][idx] = value
+        return dict_param
+
+    def run(self):
+        # 1. Check if the first year growth rate is manually set
+        next_year = self.profile_dict['next_year'] 
+        profile = [next_year] if next_year else []
+        
+        # 2. Make phase 1 profile : Growth Phase
+        growth_phase = self.profile_dict['growth_phase']
+        if len(growth_phase) > 0:
+            start_year, end_year, trend, start, end = growth_phase
+            n = end_year - start_year + 1
+            if trend == 'linear': n = n - 1
+            profile += self.make_profile(start, end, trend, n)
+        
+        # 2. Make phase 2 profile : High Growth Phase
+        high_growth_phase = self.profile_dict['high_growth_phase']
+        if len(high_growth_phase) > 0:
+            start_year, end_year, trend, start, end = high_growth_phase
+            start = profile[-1]
+            n = end_year - start_year + 1
+            if trend == 'constant': n = n + 1
+            profile = profile[:-1] + self.make_profile(start, end, trend, n)
+        
+        return profile
